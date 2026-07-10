@@ -63,6 +63,7 @@ class MarcosadoPHPBlockBuilder
             field_type VARCHAR(50) NOT NULL DEFAULT 'text',
             field_default TEXT NOT NULL,
             field_section VARCHAR(255) NOT NULL DEFAULT 'Général',
+            field_sub_fields LONGTEXT NULL,
             sort_order INT NOT NULL DEFAULT 0,
             PRIMARY KEY (id),
             KEY block_slug (block_slug)
@@ -128,6 +129,10 @@ class MarcosadoPHPBlockBuilder
             if (empty($col_exists)) {
                 $wpdb->query("ALTER TABLE {$wpdb->prefix}marcosado_block_attributes ADD COLUMN field_section VARCHAR(255) NOT NULL DEFAULT 'Général' AFTER field_default");
             }
+            $col_sub = $wpdb->get_results("SHOW COLUMNS FROM {$wpdb->prefix}marcosado_block_attributes LIKE 'field_sub_fields'");
+            if (empty($col_sub)) {
+                $wpdb->query("ALTER TABLE {$wpdb->prefix}marcosado_block_attributes ADD COLUMN field_sub_fields LONGTEXT NULL AFTER field_section");
+            }
         }
     }
 
@@ -135,7 +140,7 @@ class MarcosadoPHPBlockBuilder
     // UTILITAIRES BLOCS (privés)
     // ──────────────────────────────────────────────────────────────────────────
 
-    private static function get_blocks_dir(): string
+    public static function get_blocks_dir(): string
     {
         $upload_dir = wp_upload_dir();
         $dir = $upload_dir['basedir'] . '/marcosado-php-block-builder/';
@@ -255,14 +260,17 @@ class MarcosadoPHPBlockBuilder
             $key = sanitize_key((string) $key);
             if (empty($key)) continue;
 
+            $sub_fields = isset($options['fields']) && is_array($options['fields']) ? wp_json_encode($options['fields']) : null;
+
             $wpdb->insert($attr_table, [
-                'block_slug'    => $slug,
-                'field_key'     => $key,
-                'field_label'   => sanitize_text_field($options['label'] ?? ucfirst($key)),
-                'field_type'    => sanitize_text_field($options['type']  ?? 'text'),
-                'field_default' => sanitize_text_field($options['default'] ?? ''),
-                'field_section' => sanitize_text_field($options['section'] ?? 'Général'),
-                'sort_order'    => $sort_order,
+                'block_slug'       => $slug,
+                'field_key'        => $key,
+                'field_label'      => sanitize_text_field($options['label'] ?? ucfirst($key)),
+                'field_type'       => sanitize_text_field($options['type']  ?? 'text'),
+                'field_default'    => sanitize_text_field($options['default'] ?? ''),
+                'field_section'    => sanitize_text_field($options['section'] ?? 'Général'),
+                'field_sub_fields' => $sub_fields,
+                'sort_order'       => $sort_order,
             ]);
             $sort_order += 10;
         }
@@ -297,7 +305,15 @@ class MarcosadoPHPBlockBuilder
             $type    = addslashes($attr->field_type);
             $label   = addslashes($attr->field_label);
             $default = addslashes($attr->field_default);
-            $lines[] = "    '{$attr->field_key}' => ['type' => '{$type}', 'label' => '{$label}', 'default' => '{$default}'],";
+            $section = addslashes($attr->field_section);
+            $sub_fields = '';
+            if (!empty($attr->field_sub_fields)) {
+                $decoded = json_decode($attr->field_sub_fields, true);
+                if (is_array($decoded)) {
+                    $sub_fields = ", 'fields' => " . var_export($decoded, true);
+                }
+            }
+            $lines[] = "    '{$attr->field_key}' => ['type' => '{$type}', 'label' => '{$label}', 'default' => '{$default}', 'section' => '{$section}'{$sub_fields}],";
         }
 
         $declaration = "<?php\n"
@@ -680,7 +696,7 @@ class MarcosadoPHPBlockBuilder
         if (empty($blocks)) return;
 
         // Recuperer tous les attributs en une requete
-        $all_attrs = $wpdb->get_results("SELECT block_slug, field_key, field_label, field_type, field_default FROM {$wpdb->prefix}marcosado_block_attributes ORDER BY sort_order ASC");
+        $all_attrs = $wpdb->get_results("SELECT block_slug, field_key, field_label, field_type, field_default, field_section, field_sub_fields FROM {$wpdb->prefix}marcosado_block_attributes ORDER BY sort_order ASC");
         
         $attrs_by_slug = [];
         if ($all_attrs) {
@@ -707,11 +723,13 @@ class MarcosadoPHPBlockBuilder
             'number'  => 'number',
             'boolean' => 'boolean',
             'image'   => 'string',
+            'repeater'=> 'array',
             default   => 'string',
         };
     }
 
     private static function cast_default(string $type, string $default): mixed {
+        if ($type === 'repeater') return [];
         if ($default === '') return '';
         return match($type) {
             'number'  => (float) $default,
@@ -731,7 +749,7 @@ class MarcosadoPHPBlockBuilder
             "SELECT slug, name, code FROM {$wpdb->prefix}marcosado_blocks"
         );
 
-        $all_attrs = $wpdb->get_results("SELECT block_slug, field_key, field_label, field_type, field_default, field_section FROM {$wpdb->prefix}marcosado_block_attributes ORDER BY sort_order ASC");
+        $all_attrs = $wpdb->get_results("SELECT block_slug, field_key, field_label, field_type, field_default, field_section, field_sub_fields FROM {$wpdb->prefix}marcosado_block_attributes ORDER BY sort_order ASC");
         $attrs_by_slug = [];
         if ($all_attrs) {
             foreach ($all_attrs as $attr) {
@@ -749,10 +767,14 @@ class MarcosadoPHPBlockBuilder
             $block_attrs = $attrs_by_slug[$block->slug] ?? [];
             $gutenberg_attrs = [];
             foreach ($block_attrs as $attr) {
+                $mapped_type = self::map_field_type($attr->field_type);
                 $gutenberg_attrs[$attr->field_key] = [
-                    'type'    => self::map_field_type($attr->field_type),
+                    'type'    => $mapped_type,
                     'default' => self::cast_default($attr->field_type, $attr->field_default),
                 ];
+                if ($mapped_type === 'array') {
+                    $gutenberg_attrs[$attr->field_key]['items'] = ['type' => 'object'];
+                }
             }
 
             register_block_type('marcosado-block-builder/' . $block->slug, [
@@ -860,7 +882,7 @@ class MarcosadoPHPBlockBuilder
         $sm_blocks_config = [];
         $blocks = $wpdb->get_results("SELECT slug, name FROM {$wpdb->prefix}marcosado_blocks");
         
-        $all_attrs = $wpdb->get_results("SELECT block_slug, field_key, field_label, field_type, field_default, field_section FROM {$wpdb->prefix}marcosado_block_attributes ORDER BY sort_order ASC");
+        $all_attrs = $wpdb->get_results("SELECT block_slug, field_key, field_label, field_type, field_default, field_section, field_sub_fields FROM {$wpdb->prefix}marcosado_block_attributes ORDER BY sort_order ASC");
         
         // Grouper les attributs par slug
         $attrs_by_slug = [];
@@ -943,6 +965,29 @@ class MarcosadoPHPBlockBuilder
                     $url = is_string($val) ? $val : '';
                     $result[$key] = ['url' => $url, 'id' => 0];
                     break;
+                case 'repeater':
+                    $items = is_array($val) ? $val : [];
+                    $sub_defs = [];
+                    if (!empty($def->field_sub_fields)) {
+                        $parsed = json_decode($def->field_sub_fields, true) ?? [];
+                        foreach ($parsed as $sub_key => $sub_def) {
+                            $obj = new \stdClass();
+                            $obj->field_key = $sub_key;
+                            $obj->field_type = $sub_def['type'] ?? 'text';
+                            $obj->field_default = $sub_def['default'] ?? '';
+                            $sub_defs[] = $obj;
+                        }
+                    }
+                    if (!empty($sub_defs)) {
+                        foreach ($items as &$item) {
+                            if (is_array($item)) {
+                                $item = $this->bm_normalize_for_elementor($item, $sub_defs);
+                            }
+                        }
+                        unset($item);
+                    }
+                    $result[$key] = $items;
+                    break;
             }
         }
         return $result;
@@ -955,7 +1000,7 @@ class MarcosadoPHPBlockBuilder
      */
     private function bm_normalize_for_gutenberg(array $el_settings, array $field_defs): array
     {
-        $result = $el_settings;
+        $result = [];
         foreach ($field_defs as $def) {
             $key = $def->field_key;
             $val = $el_settings[$key] ?? null;
@@ -966,7 +1011,6 @@ class MarcosadoPHPBlockBuilder
                 case 'image':
                     if (is_array($val)) {
                         $url = $val['url'] ?? '';
-                        // Gérer le cas Elementor d'image vide : ['url'=>'','id'=>'']
                         $result[$key] = (is_string($url) && $url !== '') ? $url : ($def->field_default ?? '');
                     } else {
                         $result[$key] = is_string($val) ? $val : ($def->field_default ?? '');
@@ -975,10 +1019,48 @@ class MarcosadoPHPBlockBuilder
                 case 'number':
                     $result[$key] = is_numeric($val) ? (float) $val : (float) ($def->field_default ?: 0);
                     break;
-                default:
-                    if ($val === null) {
-                        $result[$key] = $def->field_default ?? '';
+                case 'repeater':
+                    $items = is_array($val) ? $val : [];
+                    $sub_defs = [];
+                    $raw_sub_fields = $def->field_sub_fields ?? '';
+                    $parsed = !empty($raw_sub_fields) ? json_decode($raw_sub_fields, true) : [];
+                    if (!is_array($parsed)) $parsed = [];
+                    
+                    foreach ($parsed as $sub_key => $sub_def) {
+                        $obj = new \stdClass();
+                        $obj->field_key = $sub_key;
+                        $obj->field_type = $sub_def['type'] ?? 'text';
+                        $obj->field_default = $sub_def['default'] ?? '';
+                        $sub_defs[] = $obj;
                     }
+                    
+                    $clean_items = [];
+                    if (!empty($sub_defs)) {
+                        foreach ($items as $item) {
+                            if (is_array($item)) {
+                                // Fallback générique de sécurité avant normalisation
+                                foreach ($item as $k => $v) {
+                                    if (is_array($v) && isset($v['url'])) {
+                                        $item[$k] = $v['url'];
+                                    }
+                                }
+                                $clean_items[] = $this->bm_normalize_for_gutenberg($item, $sub_defs);
+                            }
+                        }
+                    }
+                    $result[$key] = $clean_items;
+                    break;
+                default:
+                    $result[$key] = $val !== null ? $val : ($def->field_default ?? '');
+                    // Sécurité pour s'assurer qu'aucun tableau n'est renvoyé accidentellement (sauf si c'est normalisé)
+                    if (is_array($result[$key])) {
+                        if (isset($result[$key]['url'])) {
+                            $result[$key] = $result[$key]['url'];
+                        } else {
+                            $result[$key] = '';
+                        }
+                    }
+                    break;
             }
         }
         return $result;
@@ -1020,7 +1102,7 @@ class MarcosadoPHPBlockBuilder
      */
     private function bm_update_elementor_widgets_from_gut(array &$elements, array &$gut_queue, array $attrs_map): void
     {
-        foreach ($elements as &$element) {
+        foreach ($elements as $key => &$element) {
             if (
                 !empty($element['elType']) && $element['elType'] === 'widget' &&
                 !empty($element['widgetType']) && str_starts_with($element['widgetType'], 'sm-')
@@ -1032,6 +1114,9 @@ class MarcosadoPHPBlockBuilder
                         $attrs,
                         $attrs_map[$slug] ?? []
                     );
+                } else {
+                    unset($elements[$key]);
+                    continue;
                 }
             }
             if (!empty($element['elements']) && is_array($element['elements'])) {
@@ -1039,6 +1124,33 @@ class MarcosadoPHPBlockBuilder
             }
         }
         unset($element);
+        $elements = array_values($elements);
+    }
+    
+    /**
+     * Retourne une liste plate de tous les widgets Marcosado dans Elementor, en préservant l'ordre.
+     */
+    private function bm_extract_elementor_bm_widgets_flat(array $elements): array
+    {
+        $list = [];
+        foreach ($elements as $element) {
+            if (
+                !empty($element['elType']) && $element['elType'] === 'widget' &&
+                !empty($element['widgetType']) && str_starts_with($element['widgetType'], 'sm-')
+            ) {
+                $list[] = [
+                    'slug'     => substr($element['widgetType'], 3),
+                    'settings' => $element['settings'] ?? []
+                ];
+            }
+            if (!empty($element['elements']) && is_array($element['elements'])) {
+                $children = $this->bm_extract_elementor_bm_widgets_flat($element['elements']);
+                foreach ($children as $child) {
+                    $list[] = $child;
+                }
+            }
+        }
+        return $list;
     }
 
     /**
@@ -1147,7 +1259,7 @@ class MarcosadoPHPBlockBuilder
     // Déclenché par elementor/document/after_save (sauvegarde Elementor)
     // ──────────────────────────────────────────────────────────────────────────
 
-    public function bm_sync_elementor_to_gutenberg(\Elementor\Core\Documents\Document $doc, array $data): void
+    public function bm_sync_elementor_to_gutenberg($doc, array $data): void
     {
         if (self::$_bm_syncing) return;
 
@@ -1157,34 +1269,28 @@ class MarcosadoPHPBlockBuilder
         $elementor_data = ($raw && is_string($raw)) ? json_decode($raw, true) : [];
         if (!is_array($elementor_data)) return;
 
-        // Queue Elementor : [slug => [settings1, settings2, ...]] dans l'ordre d'apparition
-        $el_queue = $this->bm_extract_elementor_bm_widgets($elementor_data);
-        if (empty($el_queue)) return;
+        $flat_list = $this->bm_extract_elementor_bm_widgets_flat($elementor_data);
 
-        $post = get_post($post_id);
-        if (!$post) return;
-
-        $blocks    = parse_blocks($post->post_content);
         $attrs_map = $this->bm_get_attrs_map();
+        $new_blocks = [];
 
-        // Chirurgie ciblée : mise à jour séquentielle par array_shift (ordre d'apparition)
-        foreach ($blocks as &$block) {
-            if (!empty($block['blockName']) && str_starts_with($block['blockName'], 'marcosado-block-builder/')) {
-                $slug = substr($block['blockName'], strlen('marcosado-block-builder/'));
-                if (!empty($el_queue[$slug])) {
-                    // On dépile le premier settings correspondant à ce slug
-                    $settings      = array_shift($el_queue[$slug]);
-                    $block['attrs'] = $this->bm_normalize_for_gutenberg($settings, $attrs_map[$slug] ?? []);
-                }
-            }
+        foreach ($flat_list as $item) {
+            $slug = $item['slug'];
+            $settings = $item['settings'];
+            $new_blocks[] = [
+                'blockName'    => 'marcosado-block-builder/' . $slug,
+                'attrs'        => $this->bm_normalize_for_gutenberg($settings, $attrs_map[$slug] ?? []),
+                'innerBlocks'  => [],
+                'innerHTML'    => '',
+                'innerContent' => [],
+            ];
         }
-        unset($block);
 
         // Marque pour éviter que save_post ne re-déclenche la synchro El→Gut
         self::$_bm_syncing = true;
         wp_update_post([
             'ID'           => $post_id,
-            'post_content' => serialize_blocks($blocks),
+            'post_content' => serialize_blocks($new_blocks),
         ]);
         self::$_bm_syncing = false;
     }
@@ -1241,6 +1347,39 @@ add_action('elementor/init', function() {
                 ]);
 
                 foreach ($attrs as $attr) {
+                    if ($attr->field_type === 'repeater') {
+                        $repeater = new \Elementor\Repeater();
+                        $sub_fields_def = !empty($attr->field_sub_fields) && is_string($attr->field_sub_fields) ? json_decode($attr->field_sub_fields, true) : [];
+                        if (!is_array($sub_fields_def)) $sub_fields_def = [];
+                        
+                        $title_field = '';
+                        foreach ($sub_fields_def as $sub_key => $sub_def) {
+                            $sub_type = $sub_def['type'] ?? 'text';
+                            $sub_args = [
+                                'label' => $sub_def['label'] ?? $sub_key,
+                                'type'  => $this->map_type($sub_type),
+                                'default' => $this->cast_default_elementor($sub_type, $sub_def['default'] ?? ''),
+                            ];
+                            if ($sub_type === 'boolean') $sub_args['return_value'] = 'yes';
+                            if ($sub_type === 'select') {
+                                $sub_args['options'] = $this->parse_select_options($sub_def['default'] ?? '');
+                                $first = array_key_first($sub_args['options']);
+                                $sub_args['default'] = $first ?? '';
+                            }
+                            if ($sub_type === 'text' && empty($title_field)) $title_field = '{{{ ' . $sub_key . ' }}}';
+                            $repeater->add_control($sub_key, $sub_args);
+                        }
+                        $rep_args = [
+                            'label' => $attr->field_label ?: $attr->field_key,
+                            'type' => \Elementor\Controls_Manager::REPEATER,
+                            'fields' => $repeater->get_controls(),
+                            'default' => [],
+                        ];
+                        if ($title_field) $rep_args['title_field'] = $title_field;
+                        $this->add_control($attr->field_key, $rep_args);
+                        continue;
+                    }
+
                     $control_args = [
                         'label'   => $attr->field_label ?: $attr->field_key,
                         'type'    => $this->map_type($attr->field_type),
@@ -1295,6 +1434,37 @@ add_action('elementor/init', function() {
                     $media_val = $attributes[$attr->field_key] ?? [];
                     // En Elementor, un champ media est un tableau. On extrait l'URL pour correspondre à Gutenberg.
                     $attributes[$attr->field_key] = is_array($media_val) && isset($media_val['url']) ? $media_val['url'] : '';
+                } elseif ($attr->field_type === 'repeater') {
+                    $items = $attributes[$attr->field_key] ?? [];
+                    if (is_array($items)) {
+                        $sub_fields_def = !empty($attr->field_sub_fields) ? json_decode($attr->field_sub_fields, true) : [];
+                        if (!is_array($sub_fields_def)) $sub_fields_def = [];
+
+                        foreach ($items as &$item) {
+                            // 1. Fallback générique : si une valeur est un tableau avec 'url', on l'extrait
+                            foreach ($item as $k => $v) {
+                                if (is_array($v) && isset($v['url'])) {
+                                    $item[$k] = $v['url'];
+                                }
+                            }
+                            // 2. Traitement spécifique basé sur les sous-champs
+                            foreach ($sub_fields_def as $sub_key => $sub_def) {
+                                $sub_type = $sub_def['type'] ?? 'text';
+                                if ($sub_type === 'boolean') {
+                                    $item[$sub_key] = ($item[$sub_key] ?? '') === 'yes';
+                                } elseif ($sub_type === 'image') {
+                                    $media_val = $item[$sub_key] ?? [];
+                                    if (is_array($media_val) && isset($media_val['url'])) {
+                                        $item[$sub_key] = $media_val['url'];
+                                    } elseif (!is_string($item[$sub_key] ?? null)) {
+                                        $item[$sub_key] = '';
+                                    }
+                                }
+                            }
+                        }
+                        unset($item);
+                    }
+                    $attributes[$attr->field_key] = $items;
                 }
             }
 

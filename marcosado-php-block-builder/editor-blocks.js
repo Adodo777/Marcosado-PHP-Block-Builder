@@ -30,6 +30,120 @@
         return opts.length ? opts : [{value: '', label: '— choisir —'}];
     }
 
+    // ── Helper : RepeaterControl ──────────────────────────────────────────────
+    var RepeaterControl = function(props) {
+        var items = Array.isArray(props.value) ? props.value : [];
+        var subFields = props.subFields || [];
+        var label = props.label || 'Repeater';
+
+        var addItem = function() {
+            var newItem = {};
+            subFields.forEach(function(f) {
+                var dVal = f.default || '';
+                if (f.type === 'boolean') dVal = (dVal === 'true' || dVal === '1');
+                if (f.type === 'number') dVal = parseInt(dVal, 10) || 0;
+                if (f.type === 'select') {
+                    var opts = parseSelectOptions(f.default);
+                    dVal = opts[0] ? opts[0].value : '';
+                }
+                newItem[f.key] = dVal;
+            });
+            var newItems = items.slice();
+            newItems.push(newItem);
+            props.onChange(newItems);
+        };
+
+        var removeItem = function(index) {
+            var newItems = items.slice();
+            newItems.splice(index, 1);
+            props.onChange(newItems);
+        };
+
+        var updateItem = function(index, key, val) {
+            var newItems = items.slice();
+            var updatedItem = Object.assign({}, newItems[index]);
+            updatedItem[key] = val;
+            newItems[index] = updatedItem;
+            props.onChange(newItems);
+        };
+
+        var renderSubField = function(index, field, item) {
+            var Control = CONTROL_MAP[field.type] || components.TextControl;
+            var controlArgs = {
+                label: field.label || field.key,
+                value: item[field.key],
+                onChange: function(val) { updateItem(index, field.key, val); }
+            };
+            if (field.type === 'boolean') {
+                controlArgs.checked = item[field.key];
+                delete controlArgs.value;
+            }
+            if (field.type === 'number') {
+                controlArgs.min = 1;
+                controlArgs.max = 100;
+            }
+            if (field.type === 'select') {
+                controlArgs.options = parseSelectOptions(field.default);
+            }
+            if (field.type === 'color') {
+                controlArgs = {
+                    color: item[field.key],
+                    onChange: function(val) { updateItem(index, field.key, val.hex !== undefined ? val.hex : val); }
+                };
+                return el('div', { style: { marginBottom: '15px' }, key: field.key },
+                    el('p', { style: { marginBottom: '8px', fontSize: '13px' } }, field.label || field.key),
+                    el(Control, controlArgs)
+                );
+            }
+            if (field.type === 'image' && MediaUpload) {
+                return el('div', { style: { marginBottom: '15px' }, key: field.key }, 
+                    el('p', { style: { marginBottom: '8px', fontSize: '13px' } }, field.label || field.key),
+                    el(MediaUpload, {
+                        onSelect: function(media) { updateItem(index, field.key, media.url); },
+                        allowedTypes: ['image'],
+                        value: item[field.key],
+                        render: function(obj) {
+                            return el('div', {},
+                                item[field.key] ? el('img', { src: item[field.key], style: { maxWidth: '100%', height: 'auto', marginBottom: '10px', borderRadius: '4px', border: '1px solid #ccc' } }) : null,
+                                el('div', {}, 
+                                    el(components.Button, { onClick: obj.open, variant: 'secondary' }, item[field.key] ? 'Changer' : 'Choisir')
+                                )
+                            );
+                        }
+                    })
+                );
+            }
+            controlArgs.key = field.key;
+            return el(Control, controlArgs);
+        };
+
+        var renderedItems = items.map(function(item, index) {
+            var title = 'Élément #' + (index + 1);
+            for (var i = 0; i < subFields.length; i++) {
+                if (subFields[i].type === 'text' && item[subFields[i].key]) {
+                    title = item[subFields[i].key];
+                    break;
+                }
+            }
+            return el(PanelBody, {
+                title: title,
+                initialOpen: index === items.length - 1, // Ouvrir le dernier ajouté
+                key: index,
+            },
+                el('div', { style: { display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' } },
+                    el(components.Button, { isDestructive: true, isSmall: true, variant: 'link', onClick: function() { removeItem(index); } }, 'Supprimer')
+                ),
+                subFields.map(function(f) { return renderSubField(index, f, item); })
+            );
+        });
+
+        return el('div', { style: { marginBottom: '20px', padding: '10px', border: '1px solid #ddd', borderRadius: '4px', background: '#f9f9f9' } },
+            el('h3', { style: { fontSize: '14px', marginBottom: '15px', marginTop: 0 } }, label),
+            renderedItems,
+            el(components.Button, { variant: 'secondary', onClick: addItem, style: { width: '100%', justifyContent: 'center' } }, '+ Ajouter un élément')
+        );
+    };
+
     // ── Blocs utilisateur (créés via le Lab) ─────────────────────────────────
     if (typeof SMBlocksConfig !== 'undefined') {
         Object.keys(SMBlocksConfig).forEach(function (key) {
@@ -45,16 +159,18 @@
                     } else if (field.field_type === 'boolean') {
                         defaultVal = (field.field_default === 'true' || field.field_default === '1');
                     } else if (field.field_type === 'select') {
-                        // Valeur par défaut = 1er option de la liste
                         var firstOpt = parseSelectOptions(field.field_default)[0];
                         defaultVal = firstOpt ? firstOpt.value : '';
+                    } else if (field.field_type === 'repeater') {
+                        defaultVal = [];
                     } else {
                         defaultVal = field.field_default;
                     }
                     attrs[field.field_key] = {
-                        type:    field.field_type === 'number' ? 'number' : (field.field_type === 'boolean' ? 'boolean' : 'string'),
+                        type:    field.field_type === 'number' ? 'number' : (field.field_type === 'boolean' ? 'boolean' : (field.field_type === 'repeater' ? 'array' : 'string')),
                         default: defaultVal,
                     };
+                    if (field.field_type === 'repeater') attrs[field.field_key].items = { type: 'object' };
                 });
             }
 
@@ -101,7 +217,34 @@
                             }
                             
                             var finalElement;
-                            if (field.field_type === 'color') {
+                            if (field.field_type === 'repeater') {
+                                var subFields = [];
+                                if (field.field_sub_fields) {
+                                    try {
+                                        var parsed = JSON.parse(field.field_sub_fields);
+                                        Object.keys(parsed).forEach(function(sk) {
+                                            var sd = parsed[sk];
+                                            subFields.push({
+                                                key: sk,
+                                                type: sd.type || 'text',
+                                                label: sd.label || sk,
+                                                default: sd.default || ''
+                                            });
+                                        });
+                                    } catch(e) {}
+                                }
+                                finalElement = el(RepeaterControl, {
+                                    key: field.field_key,
+                                    label: field.field_label || field.field_key,
+                                    value: props.attributes[field.field_key],
+                                    subFields: subFields,
+                                    onChange: function(val) {
+                                        var update = {};
+                                        update[field.field_key] = val;
+                                        props.setAttributes(update);
+                                    }
+                                });
+                            } else if (field.field_type === 'color') {
                                 controlArgs = {
                                     color:    props.attributes[field.field_key],
                                     onChange: function(val) {
