@@ -1,4 +1,6 @@
 <?php
+namespace Marcosado\BlockBuilder;
+
 if (!defined('ABSPATH')) exit;
 
 class Marcosado_Elementor
@@ -33,10 +35,15 @@ class Marcosado_Elementor
             }
         }
 
+        $block_errors = get_option('marcosado_block_errors', []);
+
         foreach ($blocks as $bloc) {
+            if (isset($block_errors[$bloc->slug])) {
+                continue;
+            }
             $bm_attributes = $attrs_by_slug[$bloc->slug] ?? [];
-            if (class_exists('Marcosado_Dynamic_Widget')) {
-                $manager->register(new \Marcosado_Dynamic_Widget([], [
+            if (class_exists('\Marcosado\BlockBuilder\Marcosado_Block_Builder_Dynamic_Widget')) {
+                $manager->register(new Marcosado_Block_Builder_Dynamic_Widget([], [
                     'bloc' => $bloc,
                     'bm_attributes' => $bm_attributes
                 ]));
@@ -48,7 +55,7 @@ class Marcosado_Elementor
 add_action('elementor/init', function() {
     if (!class_exists('\Elementor\Widget_Base')) return;
 
-    class Marcosado_Dynamic_Widget extends \Elementor\Widget_Base {
+    class Marcosado_Block_Builder_Dynamic_Widget extends \Elementor\Widget_Base {
         private object $bloc;
         private array $bm_attributes;
 
@@ -202,19 +209,12 @@ add_action('elementor/init', function() {
                 }
             }
 
-            $file = MARCOSADO_BLOCKS_DIR . $this->bloc->slug . '.php';
-
-            if (!file_exists($file)) {
-                $header = "<?php\nif (!defined('ABSPATH')) exit;\n/**\n * Block Name: " . $this->bloc->name . "\n */\n?>\n";
-                file_put_contents($file, $header . $this->bloc->code);
-            }
-
-            $_bm_file_to_include = $file;
+            $slug = sanitize_key($this->bloc->slug);
+            $_bm_file_to_include = "bmcode://" . $slug;
+            
             extract($attributes, EXTR_SKIP);
             ob_start();
-            if (file_exists($_bm_file_to_include)) {
-                include $_bm_file_to_include;
-            }
+            include $_bm_file_to_include;
             echo ob_get_clean();
         }
 

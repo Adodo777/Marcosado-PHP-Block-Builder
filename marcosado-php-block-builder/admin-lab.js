@@ -1,9 +1,9 @@
 jQuery(document).ready(function($) {
     var $textarea = $('#block-code-editor');
 
-    if ($textarea.length && typeof mpbbSettings !== 'undefined') {
+    if ($textarea.length && typeof marcosado_bb_settings !== 'undefined') {
         // Activer le retour à la ligne (lineWrapping) pour éviter l'étirement sur les longues lignes (ex: URLs)
-        var settings = $.extend(true, {}, mpbbSettings);
+        var settings = $.extend(true, {}, marcosado_bb_settings);
         if (settings.codemirror) {
             settings.codemirror.lineWrapping = true;
         }

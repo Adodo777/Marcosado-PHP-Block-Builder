@@ -1,4 +1,6 @@
 <?php
+namespace Marcosado\BlockBuilder;
+
 if (!defined('ABSPATH')) exit;
 
 class Marcosado_Parser
@@ -7,23 +9,18 @@ class Marcosado_Parser
     {
         global $wpdb;
 
-        $file = MARCOSADO_BLOCKS_DIR . $slug . '.php';
-        if (!file_exists($file)) {
-            return false;
-        }
+        $slug_clean = sanitize_key($slug);
+        $_bm_file_to_include = "bmcode://" . $slug_clean;
 
         ob_start();
-        $old_error_level = error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
         try {
-            include $file;
+            include $_bm_file_to_include;
         } catch (\Throwable $e) {
             ob_end_clean();
-            error_reporting($old_error_level);
-            error_log("MarcosadoPHPBlockBuilder Parser Include Error (bloc \"$slug\") : " . $e->getMessage());
+            error_log("MarcosadoPHPBlockBuilder Parser Include Error (bloc \"$slug_clean\") : " . $e->getMessage());
             return false;
         }
         ob_end_clean();
-        error_reporting($old_error_level);
 
         if (!isset($bm_attributes) || !is_array($bm_attributes) || empty($bm_attributes)) {
             return false;

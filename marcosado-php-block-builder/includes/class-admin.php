@@ -1,4 +1,6 @@
 <?php
+namespace Marcosado\BlockBuilder;
+
 if (!defined('ABSPATH')) exit;
 
 class Marcosado_Admin
@@ -46,7 +48,7 @@ class Marcosado_Admin
                 MARCOSADO_PLUGIN_URL . 'admin-lab.js',
                 ['jquery'], '2.0', true
             );
-            wp_localize_script('marcosado-block-builder-admin-js', 'mpbbSettings', $settings);
+            wp_localize_script('marcosado-block-builder-admin-js', 'marcosado_bb_settings', $settings);
 
             wp_add_inline_style('common', '
                 .marcosado-php-block-builder-container { display: flex; gap: 20px; margin-top: 20px; max-width: 100%; overflow: hidden; }
@@ -65,41 +67,6 @@ class Marcosado_Admin
     private static function strip_block_header(string $raw): string
     {
         return preg_replace('/<\?php\s*(if\s*\(!defined\(\'ABSPATH\'\)\)\s*exit;)?\s*\/\*\*.*?\*\/\s*\?>\n/s', '', $raw);
-    }
-
-    public static function write_block_file(string $slug, string $name, string $code): void
-    {
-        $blocks_dir = MARCOSADO_BLOCKS_DIR;
-        $header = "<?php\nif (!defined('ABSPATH')) exit;\n/**\n * Block Name: " . $name . "\n */\n?>\n";
-        file_put_contents($blocks_dir . $slug . '.php', $header . $code);
-    }
-
-    public static function migrate_files_to_db(): void
-    {
-        global $wpdb;
-        $blocks_dir = MARCOSADO_PLUGIN_DIR . 'blocks/';
-        if (!file_exists($blocks_dir)) return;
-
-        foreach (glob($blocks_dir . '*.php') ?: [] as $file) {
-            $slug = basename($file, '.php');
-            if (str_starts_with($slug, 'marcosado-')) continue;
-
-            $exists = $wpdb->get_var($wpdb->prepare(
-                "SELECT id FROM {$wpdb->prefix}marcosado_blocks WHERE slug = %s",
-                $slug
-            ));
-            if (!$exists) {
-                $raw  = file_get_contents($file);
-                $code = self::strip_block_header($raw);
-                $name = ucwords(str_replace('-', ' ', $slug));
-                $wpdb->insert($wpdb->prefix . 'marcosado_blocks', [
-                    'name'       => $name,
-                    'slug'       => $slug,
-                    'code'       => $code,
-                    'updated_at' => current_time('mysql'),
-                ]);
-            }
-        }
     }
 
     private static function save_block(string $name, string $code): void
@@ -136,7 +103,19 @@ class Marcosado_Admin
             $name, $slug, $code, current_time('mysql')
         ));
 
-        self::write_block_file($slug, $name, $code);
+        // Analyse de sécurité
+        $security = Marcosado_Security::analyze_code($code);
+        $errors = get_option('marcosado_block_errors', []);
+        if (!$security['valid']) {
+            $errors[$slug] = $security;
+        } else {
+            unset($errors[$slug]);
+        }
+        update_option('marcosado_block_errors', $errors);
+
+        // Vider le cache
+        wp_cache_delete('bmcode_' . $slug, 'marcosado_blocks');
+
         Marcosado_Parser::sync_attributes_from_code($slug, $code);
 
         error_log(sprintf(
@@ -171,20 +150,14 @@ class Marcosado_Admin
         global $wpdb;
         $wpdb->delete($wpdb->prefix . 'marcosado_blocks_history', ['slug' => $slug]);
         $wpdb->delete($wpdb->prefix . 'marcosado_blocks', ['slug' => $slug]);
-        $file = MARCOSADO_BLOCKS_DIR . $slug . '.php';
-        if (file_exists($file)) {
-            unlink($file);
-        }
-    }
 
-    private static function regenerate_all_files(): int
-    {
-        global $wpdb;
-        $blocks = $wpdb->get_results("SELECT slug, name, code FROM {$wpdb->prefix}marcosado_blocks");
-        foreach ($blocks as $b) {
-            self::write_block_file($b->slug, $b->name, $b->code);
+        $errors = get_option('marcosado_block_errors', []);
+        if (isset($errors[$slug])) {
+            unset($errors[$slug]);
+            update_option('marcosado_block_errors', $errors);
         }
-        return count($blocks);
+
+        wp_cache_delete('bmcode_' . $slug, 'marcosado_blocks');
     }
 
     public static function admin_page(): void
@@ -201,11 +174,6 @@ class Marcosado_Admin
                 self::delete_block($delete_slug);
                 echo '<div class="updated"><p>Bloc supprimé.</p></div>';
             }
-        }
-
-        if (isset($_GET['regenerate']) && check_admin_referer('bm_regenerate')) {
-            $count = self::regenerate_all_files();
-            echo '<div class="updated"><p>' . $count . ' fichier(s) régénéré(s) avec succès.</p></div>';
         }
 
         if (isset($_POST['save_block']) && check_admin_referer('bm_save')) {
@@ -241,7 +209,7 @@ class Marcosado_Admin
             $edit_code = Marcosado_Parser::inject_bm_attributes_from_db($edit_slug, $edit_code);
 
             $history = $wpdb->get_results($wpdb->prepare(
-                "SELECT id, saved_at FROM {$wpdb->prefix}marcosado_blocks_history
+                "SELECT id, saved_at, code FROM {$wpdb->prefix}marcosado_blocks_history
                  WHERE slug = %s ORDER BY saved_at DESC LIMIT 5",
                 $edit_slug
             ));
@@ -323,15 +291,23 @@ class Marcosado_Admin
                         <p>Aucun bloc créé.</p>
                     <?php endif; ?>
 
-                    <?php foreach ($all_blocks as $block) :
+                    <?php 
+                    $block_errors = get_option('marcosado_block_errors', []);
+                    foreach ($all_blocks as $block) :
                         $del_url = wp_nonce_url(
                             admin_url('admin.php?page=marcosado-php-block-builder&delete=' . $block->slug),
                             'bm_delete_' . $block->slug
                         );
                         $edit_url = admin_url('admin.php?page=marcosado-php-block-builder&edit=' . $block->slug);
+                        $error = $block_errors[$block->slug] ?? null;
                     ?>
                         <div class="marcosado-block-builder-list-item">
-                            <span><strong><?php echo esc_html($block->name); ?></strong></span>
+                            <span>
+                                <?php if ($error) : ?>
+                                    <span title="<?php echo esc_attr($error['error_type'] . ' (Ligne ' . $error['line'] . ')'); ?>" style="cursor:help;">⚠️</span>
+                                <?php endif; ?>
+                                <strong><?php echo esc_html($block->name); ?></strong>
+                            </span>
                             <div>
                                 <a href="<?php echo esc_url($edit_url); ?>">Éditer</a> |
                                 <a href="<?php echo esc_url($del_url); ?>"
@@ -341,20 +317,7 @@ class Marcosado_Admin
                         </div>
                     <?php endforeach; ?>
 
-                    <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #ddd;">
-                        <?php
-                        $regen_url = wp_nonce_url(
-                            admin_url('admin.php?page=marcosado-php-block-builder&regenerate=1'),
-                            'bm_regenerate'
-                        );
-                        ?>
-                        <a href="<?php echo esc_url($regen_url); ?>"
-                           class="button button-secondary"
-                           onclick="return confirm('Régénérer tous les fichiers PHP depuis la base de données ?')"
-                           title="Recrée tous les fichiers .php dans /blocks/ depuis la DB">
-                            🔄 Régénérer tous les fichiers
-                        </a>
-                    </div>
+
 
                     <?php if ($edit_slug && !empty($history)) : ?>
                         <div style="margin-top: 25px; padding-top: 15px; border-top: 1px solid #ddd;">
@@ -365,9 +328,13 @@ class Marcosado_Admin
                                 );
                                 $label = 'v' . (count($history) - $i);
                                 $date  = date_i18n('d M Y H:i', strtotime($version->saved_at));
+                                $sec_check = Marcosado_Security::analyze_code($version->code);
                             ?>
                                 <div class="marcosado-block-builder-list-item">
                                     <span style="font-size: 13px;">
+                                        <?php if (!$sec_check['valid']) : ?>
+                                            <span title="<?php echo esc_attr($sec_check['error_type'] . ' (Ligne ' . $sec_check['line'] . ')'); ?>" style="cursor:help;">⚠️</span>
+                                        <?php endif; ?>
                                         <strong><?php echo esc_html($label); ?></strong>
                                         — <?php echo esc_html($date); ?>
                                     </span>

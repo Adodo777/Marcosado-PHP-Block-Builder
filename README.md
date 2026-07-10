@@ -143,13 +143,6 @@ Since the rendering is in PHP, you can use the full power of WordPress:
 - `editor-blocks.js`: Handles placeholder rendering on the Gutenberg editor side.
 - `admin-lab.js`: CodeMirror code editor for the dashboard.
 - `/assets/lucide.min.js`: Lucide icons library.
-- `/wp-content/uploads/marcosado-php-block-builder/`: **Critical Folder**. This is where all your custom PHP block files are stored on the server.
-
----
-
-## ⚠️ Important Note
-> [!WARNING]
-> The directory `/wp-content/uploads/marcosado-php-block-builder/` is the storage engine of this plugin. Deleting files from this folder will delete the corresponding blocks from your website. Always keep backups of your code!
 
 ---
 

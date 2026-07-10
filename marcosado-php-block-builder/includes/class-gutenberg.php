@@ -1,4 +1,6 @@
 <?php
+namespace Marcosado\BlockBuilder;
+
 if (!defined('ABSPATH')) exit;
 
 class Marcosado_Gutenberg
@@ -37,7 +39,6 @@ class Marcosado_Gutenberg
     public static function register_all_blocks(): void
     {
         global $wpdb;
-        $blocks_dir = MARCOSADO_BLOCKS_DIR;
 
         $blocks = $wpdb->get_results(
             "SELECT slug, name, code FROM {$wpdb->prefix}marcosado_blocks"
@@ -51,11 +52,11 @@ class Marcosado_Gutenberg
             }
         }
 
-        foreach ($blocks as $block) {
-            $file = $blocks_dir . $block->slug . '.php';
+        $block_errors = get_option('marcosado_block_errors', []);
 
-            if (!file_exists($file)) {
-                Marcosado_Admin::write_block_file($block->slug, $block->name, $block->code);
+        foreach ($blocks as $block) {
+            if (isset($block_errors[$block->slug])) {
+                continue;
             }
 
             $block_attrs = $attrs_by_slug[$block->slug] ?? [];
@@ -73,13 +74,12 @@ class Marcosado_Gutenberg
 
             register_block_type('marcosado-block-builder/' . $block->slug, [
                 'attributes'      => $gutenberg_attrs,
-                'render_callback' => function ($attributes, $content) use ($file) {
-                    $_bm_file_to_include = $file;
+                'render_callback' => function ($attributes, $content) use ($block) {
+                    $slug_clean = sanitize_key($block->slug);
+                    $_bm_file_to_include = "bmcode://" . $slug_clean;
                     extract($attributes, EXTR_SKIP);
                     ob_start();
-                    if (file_exists($_bm_file_to_include)) {
-                        include $_bm_file_to_include;
-                    }
+                    include $_bm_file_to_include;
                     return ob_get_clean();
                 },
                 'category' => 'design',
@@ -120,7 +120,7 @@ class Marcosado_Gutenberg
             ];
         }
         
-        wp_localize_script('marcosado-block-builder-editor', 'BMBlocksConfig', $bm_blocks_config);
+        wp_localize_script('marcosado-block-builder-editor', 'marcosado_blocks_config', $bm_blocks_config);
     }
 
     public static function load_tailwind(): void

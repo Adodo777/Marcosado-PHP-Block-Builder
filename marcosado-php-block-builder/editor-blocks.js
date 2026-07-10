@@ -144,10 +144,10 @@
         );
     };
 
-    // ── Blocs utilisateur (créés via le Lab) ─────────────────────────────────
-    if (typeof BMBlocksConfig !== 'undefined') {
-        Object.keys(BMBlocksConfig).forEach(function (key) {
-            var block = BMBlocksConfig[key];
+    // ── Enregistrement de tous les blocs ───────────────────────────────────────
+    if (typeof marcosado_blocks_config !== 'undefined') {
+        Object.keys(marcosado_blocks_config).forEach(function(key) {
+            var block = marcosado_blocks_config[key];
             
             // Build Gutenberg attributes array from config
             var attrs = {};
