@@ -27,15 +27,17 @@ document.addEventListener('DOMContentLoaded', function() {
     const aiPromptText = `Tu es un assistant IA spécialisé pour WordPress et le plugin "Marcosado PHP Block Builder".
 Génère le code complet d'un bloc personnalisé en respectant strictement ces consignes :
 
-1. DÉCLARATION DES ATTRIBUTS :
-Dans le tout premier bloc PHP fermé de ton code, déclare le tableau $bm_attributes pour définir les champs de la barre latérale :
+1. DÉCLARATION DES ATTRIBUTS (OPTIONNEL) :
+Si le bloc a besoin de champs éditables (titre, image, couleurs, etc.), déclare le tableau $bm_attributes dans le tout premier bloc PHP fermé de ton code :
 <?php
+// Optionnel : ne le mettez que si vous avez besoin de paramètres dynamiques
 $bm_attributes = [
     'cle_attribut' => [
-        'type' => 'text'|'textarea'|'number'|'boolean'|'color'|'image'|'select',
+        'type' => 'text'|'textarea'|'number'|'boolean'|'color'|'image'|'select'|'repeater',
         'label' => 'Label affiché',
         'default' => 'valeur_par_defaut', // pour select : 'val1:Label1,val2:Label2'
-        'section' => 'Général' // optionnel
+        'section' => 'Général', // optionnel
+        'sub_fields' => json_encode(['sous_cle' => ['type' => 'text', 'default' => '']]) // requis uniquement si type='repeater'
     ],
 ];
 ?>

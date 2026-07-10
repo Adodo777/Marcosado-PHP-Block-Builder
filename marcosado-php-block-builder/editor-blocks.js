@@ -145,9 +145,9 @@
     };
 
     // ── Blocs utilisateur (créés via le Lab) ─────────────────────────────────
-    if (typeof SMBlocksConfig !== 'undefined') {
-        Object.keys(SMBlocksConfig).forEach(function (key) {
-            var block = SMBlocksConfig[key];
+    if (typeof BMBlocksConfig !== 'undefined') {
+        Object.keys(BMBlocksConfig).forEach(function (key) {
+            var block = BMBlocksConfig[key];
             
             // Build Gutenberg attributes array from config
             var attrs = {};
