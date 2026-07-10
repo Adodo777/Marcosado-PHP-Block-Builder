@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Marcosado PHP Block Builder
  * Description: Create and manage custom Gutenberg blocks using PHP, Tailwind CSS, and dynamic attributes, with Elementor support.
- * Version: 1.2
+ * Version: 1.2.0
  * Author: marcosado
  * License: GPLv2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html

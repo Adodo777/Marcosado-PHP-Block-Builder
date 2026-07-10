@@ -3,7 +3,7 @@ Contributors: marcosado
 Tags: gutenberg, elementor, blocks, custom-blocks, tailwind
 Requires at least: 5.8
 Tested up to: 7.0
-Stable tag: 1.2
+Stable tag: 1.2.0
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -22,7 +22,7 @@ Marcosado PHP Block Builder is a powerful WordPress plugin designed for develope
 
 == Changelog ==
 
-= 1.2 =
+= 1.2.0 =
 * Complete architecture refactoring (modularized classes).
 * Improved bidirectional Gutenberg ↔ Elementor sync.
 * Replaced sitemaster naming with marcosado naming convention.
