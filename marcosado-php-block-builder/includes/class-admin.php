@@ -64,11 +64,6 @@ class Marcosado_Admin
         }
     }
 
-    private static function strip_block_header(string $raw): string
-    {
-        return preg_replace('/<\?php\s*(if\s*\(!defined\(\'ABSPATH\'\)\)\s*exit;)?\s*\/\*\*.*?\*\/\s*\?>\n/s', '', $raw);
-    }
-
     private static function save_block(string $name, string $code): void
     {
         global $wpdb;

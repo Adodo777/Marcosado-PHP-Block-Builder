@@ -79,29 +79,6 @@ class Marcosado_Sync
         return $result;
     }
 
-    private static function extract_elementor_bm_widgets(array $elements): array
-    {
-        $widgets = [];
-        foreach ($elements as $element) {
-            if (
-                !empty($element['elType']) && $element['elType'] === 'widget' &&
-                !empty($element['widgetType']) && str_starts_with($element['widgetType'], 'bm-')
-            ) {
-                $slug = substr($element['widgetType'], 3);
-                $widgets[$slug][] = $element['settings'] ?? [];
-            }
-            if (!empty($element['elements']) && is_array($element['elements'])) {
-                $children = self::extract_elementor_bm_widgets($element['elements']);
-                foreach ($children as $slug => $instances) {
-                    foreach ($instances as $instance) {
-                        $widgets[$slug][] = $instance;
-                    }
-                }
-            }
-        }
-        return $widgets;
-    }
-
     private static function extract_elementor_bm_widgets_flat(array $elements): array
     {
         $list = [];
