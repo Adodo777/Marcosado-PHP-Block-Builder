@@ -74,4 +74,9 @@ class Marcosado_Stream_Wrapper
             'blocks' => -1
         ];
     }
+
+    public function stream_set_option($option, $arg1, $arg2)
+    {
+        return false;
+    }
 }
