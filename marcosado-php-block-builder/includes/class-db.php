@@ -7,7 +7,6 @@ class Marcosado_DB
 {
     public static function init(): void
     {
-        register_activation_hook(MARCOSADO_PLUGIN_FILE, [self::class, 'activate']);
         add_action('plugins_loaded', [self::class, 'maybe_setup_tables']);
     }
 

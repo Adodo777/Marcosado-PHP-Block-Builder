@@ -33,16 +33,28 @@ require_once MARCOSADO_PLUGIN_DIR . 'includes/class-sync.php';
 require_once MARCOSADO_PLUGIN_DIR . 'includes/class-security.php';
 require_once MARCOSADO_PLUGIN_DIR . 'includes/class-stream-wrapper.php';
 
-stream_wrapper_register("bmcode", "\Marcosado\BlockBuilder\Marcosado_Stream_Wrapper");
+function activate_plugin() {
+    Marcosado_DB::activate();
+}
+
+register_activation_hook(__FILE__, __NAMESPACE__ . '\\activate_plugin');
 
 class MarcosadoPHPBlockBuilder {
     public static function init() {
+        if (!in_array('bmcode', stream_get_wrappers(), true)) {
+            stream_wrapper_register('bmcode', __NAMESPACE__ . '\\Marcosado_Stream_Wrapper');
+        }
+
         Marcosado_DB::init();
         Marcosado_Admin::init();
         Marcosado_Gutenberg::init();
-        Marcosado_Elementor::init();
+        
+        if (did_action('elementor/loaded') || class_exists('\Elementor\Plugin')) {
+            Marcosado_Elementor::init();
+        }
+
         Marcosado_Sync::init();
     }
 }
 
-MarcosadoPHPBlockBuilder::init();
+add_action('plugins_loaded', [MarcosadoPHPBlockBuilder::class, 'init']);
