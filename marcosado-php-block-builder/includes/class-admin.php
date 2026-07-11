@@ -218,6 +218,9 @@ class Marcosado_Admin
         $all_blocks = $wpdb->get_results(
             "SELECT slug, name FROM {$wpdb->prefix}marcosado_blocks ORDER BY name ASC"
         );
+        if (empty($all_blocks)) {
+            $all_blocks = [];
+        }
 
         ?>
         <div class="wrap">

@@ -43,6 +43,7 @@ class Marcosado_Gutenberg
         $blocks = $wpdb->get_results(
             "SELECT slug, name, code FROM {$wpdb->prefix}marcosado_blocks"
         );
+        if (empty($blocks)) return;
 
         $all_attrs = $wpdb->get_results("SELECT block_slug, field_key, field_label, field_type, field_default, field_section, field_sub_fields FROM {$wpdb->prefix}marcosado_block_attributes ORDER BY sort_order ASC");
         $attrs_by_slug = [];
@@ -104,6 +105,7 @@ class Marcosado_Gutenberg
 
         $bm_blocks_config = [];
         $blocks = $wpdb->get_results("SELECT slug, name FROM {$wpdb->prefix}marcosado_blocks");
+        if (empty($blocks)) return;
         
         $all_attrs = $wpdb->get_results("SELECT block_slug, field_key, field_label, field_type, field_default, field_section, field_sub_fields FROM {$wpdb->prefix}marcosado_block_attributes ORDER BY sort_order ASC");
         
