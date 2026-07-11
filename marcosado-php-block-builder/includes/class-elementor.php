@@ -1,7 +1,7 @@
 <?php
 namespace Marcosado\BlockBuilder;
 
-if (!defined('ABSPATH')) exit;
+if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class Marcosado_Elementor
 {
@@ -215,6 +215,7 @@ add_action('elementor/init', function() {
             extract($attributes, EXTR_SKIP);
             ob_start();
             include $_bm_file_to_include;
+            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
             echo ob_get_clean();
         }
 

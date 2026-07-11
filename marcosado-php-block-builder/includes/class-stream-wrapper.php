@@ -1,7 +1,7 @@
 <?php
 namespace Marcosado\BlockBuilder;
 
-if (!defined('ABSPATH')) exit;
+if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class Marcosado_Stream_Wrapper
 {
@@ -10,7 +10,7 @@ class Marcosado_Stream_Wrapper
 
     public function stream_open($path, $mode, $options, &$opened_path)
     {
-        $slug = parse_url($path, PHP_URL_HOST);
+        $slug = wp_parse_url($path, PHP_URL_HOST);
         $slug = sanitize_key($slug);
         
         $cache_key = 'bmcode_' . $slug;
