@@ -48,7 +48,6 @@ class Marcosado_DB
             KEY block_slug (block_slug)
         ) $charset");
 
-        Marcosado_Admin::migrate_files_to_db();
     }
 
     public static function maybe_setup_tables(): void
