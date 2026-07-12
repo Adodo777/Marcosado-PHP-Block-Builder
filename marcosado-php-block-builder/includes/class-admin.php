@@ -72,35 +72,24 @@ class Marcosado_Admin
         $table_hist  = $wpdb->prefix . 'marcosado_blocks_history';
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
-        $current = $wpdb->get_var($wpdb->prepare(
-            "SELECT code FROM {$table} WHERE slug = %s", $slug
-        ));
+        $current = $wpdb->get_var($wpdb->prepare("SELECT code FROM {$table} WHERE slug = %s", $slug));
         if ($current !== null) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $wpdb->insert($table_hist, [
                 'slug'     => $slug,
                 'code'     => $current,
                 'saved_at' => current_time('mysql'),
             ]);
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
-            $count = (int) $wpdb->get_var($wpdb->prepare(
-                "SELECT COUNT(*) FROM {$table_hist} WHERE slug = %s", $slug
-            ));
+            $count = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$table_hist} WHERE slug = %s", $slug));
             if ($count > 5) {
                 // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
-                $wpdb->query($wpdb->prepare(
-                    "DELETE FROM {$table_hist} WHERE slug = %s ORDER BY saved_at ASC LIMIT %d",
-                    $slug, $count - 5
-                ));
+                $wpdb->query($wpdb->prepare("DELETE FROM {$table_hist} WHERE slug = %s ORDER BY saved_at ASC LIMIT %d", $slug, $count - 5));
             }
         }
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
-        $wpdb->query($wpdb->prepare(
-            "INSERT INTO {$table} (name, slug, code, updated_at)
-             VALUES (%s, %s, %s, %s)
-             ON DUPLICATE KEY UPDATE name = VALUES(name), code = VALUES(code), updated_at = VALUES(updated_at)",
-            $name, $slug, $code, current_time('mysql')
-        ));
+        $wpdb->query($wpdb->prepare("INSERT INTO {$table} (name, slug, code, updated_at) VALUES (%s, %s, %s, %s) ON DUPLICATE KEY UPDATE name = VALUES(name), code = VALUES(code), updated_at = VALUES(updated_at)", $name, $slug, $code, current_time('mysql')));
 
         // Analyse de sécurité
         $security = Marcosado_Security::analyze_code($code);

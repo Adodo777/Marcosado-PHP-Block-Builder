@@ -15,7 +15,7 @@ class Marcosado_DB
         global $wpdb;
         $charset = $wpdb->get_charset_collate();
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         $wpdb->query("CREATE TABLE IF NOT EXISTS {$wpdb->prefix}marcosado_blocks (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             name VARCHAR(255) NOT NULL,
@@ -25,8 +25,9 @@ class Marcosado_DB
             PRIMARY KEY (id),
             UNIQUE KEY slug (slug)
         ) $charset");
+        // phpcs:enable
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         $wpdb->query("CREATE TABLE IF NOT EXISTS {$wpdb->prefix}marcosado_blocks_history (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             slug VARCHAR(191) NOT NULL,
@@ -35,8 +36,9 @@ class Marcosado_DB
             PRIMARY KEY (id),
             KEY slug_idx (slug)
         ) $charset");
+        // phpcs:enable
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         $wpdb->query("CREATE TABLE IF NOT EXISTS {$wpdb->prefix}marcosado_block_attributes (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             block_slug VARCHAR(191) NOT NULL,
@@ -50,7 +52,7 @@ class Marcosado_DB
             PRIMARY KEY (id),
             KEY block_slug (block_slug)
         ) $charset");
-
+        // phpcs:enable
     }
 
     public static function maybe_setup_tables(): void
