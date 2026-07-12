@@ -12,17 +12,57 @@ class Marcosado_Parser
         $slug_clean = sanitize_key($slug);
         $_bm_file_to_include = "bmcode://" . $slug_clean;
 
-        ob_start();
-        try {
-            include $_bm_file_to_include;
-        } catch (\Throwable $e) {
-            ob_end_clean();
-            error_log("MarcosadoPHPBlockBuilder Parser Include Error (bloc \"$slug_clean\") : " . $e->getMessage());
+        if (!function_exists('token_get_all')) {
             return false;
         }
-        ob_end_clean();
 
-        if (!isset($bm_attributes) || !is_array($bm_attributes) || empty($bm_attributes)) {
+        // Reconstruction statique déterministe (sans eval ni include)
+        $tokens = token_get_all($code);
+        $attr_tokens = [];
+        $in_attr = false;
+        $bracket_level = 0;
+        $has_array = false;
+
+        foreach ($tokens as $token) {
+            $is_array = is_array($token);
+            $id = $is_array ? $token[0] : null;
+            $text = $is_array ? $token[1] : $token;
+
+            if (!$in_attr) {
+                if ($id === T_VARIABLE && $text === '$bm_attributes') {
+                    $in_attr = true;
+                }
+                continue;
+            }
+
+            if ($id === T_WHITESPACE || $id === T_COMMENT || $id === T_DOC_COMMENT || $text === '=') {
+                continue;
+            }
+
+            if ($text === '[' || $id === T_ARRAY) {
+                $bracket_level++;
+                $has_array = true;
+            } elseif ($text === ']' || $text === ')') {
+                $bracket_level--;
+            } elseif ($text === ';') {
+                if ($bracket_level === 0) break;
+            }
+
+            $attr_tokens[] = $token;
+
+            if ($has_array && $bracket_level === 0) {
+                break;
+            }
+        }
+
+        if (empty($attr_tokens)) {
+            return false;
+        }
+
+        // Parseur AST maison pour tableau littéral
+        $bm_attributes = self::parse_literal_array($attr_tokens);
+
+        if (!is_array($bm_attributes) || empty($bm_attributes)) {
             return false;
         }
 
@@ -98,5 +138,108 @@ class Marcosado_Parser
             . "?>\n";
 
         return $declaration . $code;
+    }
+
+    private static function parse_literal_array(array $tokens, &$index = 0)
+    {
+        $result = [];
+        $current_key = null;
+        $is_associative = false;
+
+        while ($index < count($tokens)) {
+            $token = $tokens[$index];
+            $index++;
+
+            $is_array = is_array($token);
+            $id = $is_array ? $token[0] : null;
+            $text = $is_array ? $token[1] : $token;
+
+            if ($id === T_WHITESPACE || $id === T_COMMENT || $id === T_DOC_COMMENT) {
+                continue;
+            }
+
+            if ($text === '[' || $id === T_ARRAY || $text === '(') {
+                if ($id === T_ARRAY) continue; // skip 'array' keyword, next should be '('
+                
+                $value = self::parse_literal_array($tokens, $index);
+                if ($value === null) return null; // bubble up failure
+
+                if ($current_key !== null) {
+                    $result[$current_key] = $value;
+                    $current_key = null;
+                } else {
+                    $result[] = $value;
+                }
+            } elseif ($text === ']' || $text === ')') {
+                return $result;
+            } elseif ($id === T_CONSTANT_ENCAPSED_STRING) {
+                $val = stripcslashes(substr($text, 1, -1));
+                
+                // Peek next meaningful token to see if it's =>
+                $next_is_arrow = false;
+                $peek = $index;
+                while ($peek < count($tokens)) {
+                    $n_token = $tokens[$peek];
+                    $n_id = is_array($n_token) ? $n_token[0] : null;
+                    if ($n_id === T_WHITESPACE || $n_id === T_COMMENT || $n_id === T_DOC_COMMENT) {
+                        $peek++; continue;
+                    }
+                    if ($n_id === T_DOUBLE_ARROW) {
+                        $next_is_arrow = true;
+                        $index = $peek + 1;
+                    }
+                    break;
+                }
+
+                if ($next_is_arrow) {
+                    $current_key = $val;
+                    $is_associative = true;
+                } else {
+                    if ($current_key !== null) {
+                        $result[$current_key] = $val;
+                        $current_key = null;
+                    } else {
+                        $result[] = $val;
+                    }
+                }
+            } elseif ($id === T_LNUMBER || $id === T_DNUMBER) {
+                $val = $text + 0;
+                
+                $next_is_arrow = false;
+                $peek = $index;
+                while ($peek < count($tokens)) {
+                    $n_token = $tokens[$peek];
+                    $n_id = is_array($n_token) ? $n_token[0] : null;
+                    if ($n_id === T_WHITESPACE || $n_id === T_COMMENT || $n_id === T_DOC_COMMENT) {
+                        $peek++; continue;
+                    }
+                    if ($n_id === T_DOUBLE_ARROW) {
+                        $next_is_arrow = true;
+                        $index = $peek + 1;
+                    }
+                    break;
+                }
+
+                if ($next_is_arrow) {
+                    $current_key = $val;
+                    $is_associative = true;
+                } else {
+                    if ($current_key !== null) {
+                        $result[$current_key] = $val;
+                        $current_key = null;
+                    } else {
+                        $result[] = $val;
+                    }
+                }
+            } elseif ($text === ',') {
+                continue;
+            } else {
+                // Invalid token (variable, function call, operation, etc.)
+                // Reject immediately
+                return null;
+            }
+        }
+
+        return $result;
     }
 }

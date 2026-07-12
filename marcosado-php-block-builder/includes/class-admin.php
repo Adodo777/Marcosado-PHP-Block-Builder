@@ -172,15 +172,42 @@ class Marcosado_Admin
         }
 
         if (isset($_POST['save_block']) && check_admin_referer('bm_save')) {
-            $name = sanitize_text_field($_POST['block_name']);
-            $code = wp_unslash($_POST['block_code']);
-            self::save_block($name, $code);
-            echo '<div class="updated"><p>Bloc "' . esc_html($name) . '" enregistré avec succès !</p></div>';
+            $name = isset($_POST['block_name']) ? sanitize_text_field(wp_unslash($_POST['block_name'])) : '';
+            $raw_code = isset($_POST['block_code']) ? wp_unslash($_POST['block_code']) : '';
+
+            // Mitigation: Strict capability check - explicit denial for unauthorized execution payloads
+            if ( ! current_user_can('install_plugins') ) {
+                wp_die( esc_html__( 'Vous n\'êtes pas autorisé à enregistrer du code PHP.', 'marcosado-php-block-builder' ) );
+            }
+
+            // Valid payload from authorized user - sanitize encoding
+            $code = wp_check_invalid_utf8( $raw_code );
+            
+            // SAST Analysis: Pre-save validation to prevent storing dangerous payloads
+            $security = Marcosado_Security::analyze_code($code);
+            if (!$security['valid'] && $security['severity'] === 'critical') {
+                $error_msg = isset($security['error_type']) ? $security['error_type'] : 'Erreur de sécurité critique';
+                if (isset($security['line'])) {
+                    $error_msg .= ' (Ligne ' . $security['line'] . ')';
+                }
+                echo '<div class="error"><p><strong>Sauvegarde refusée (Critical) :</strong> ' . esc_html($error_msg) . '. Veuillez corriger le code.</p></div>';
+                
+                // Preserve user input to prevent data loss
+                $_POST['preserve_edit_name'] = $name;
+                $_POST['preserve_edit_code'] = $code;
+            } else {
+                self::save_block($name, $code);
+                $msg = 'Bloc "' . esc_html($name) . '" enregistré avec succès !';
+                if ($security['severity'] === 'warning') {
+                    $msg .= ' <strong>Attention (Warning) :</strong> ' . esc_html($security['error_type']);
+                }
+                echo '<div class="updated"><p>' . $msg . '</p></div>';
+            }
         }
 
         $edit_slug = '';
-        $edit_name = '';
-        $edit_code = '';
+        $edit_name = isset($_POST['preserve_edit_name']) ? sanitize_text_field(wp_unslash($_POST['preserve_edit_name'])) : '';
+        $edit_code = isset($_POST['preserve_edit_code']) ? wp_unslash($_POST['preserve_edit_code']) : '';
 
         if (isset($_GET['edit'])) {
             $edit_slug = sanitize_title($_GET['edit']);
