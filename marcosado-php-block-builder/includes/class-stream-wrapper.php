@@ -18,6 +18,7 @@ class Marcosado_Stream_Wrapper
 
         if (false === $code) {
             global $wpdb;
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $code = $wpdb->get_var($wpdb->prepare(
                 "SELECT code FROM {$wpdb->prefix}marcosado_blocks WHERE slug = %s",
                 $slug

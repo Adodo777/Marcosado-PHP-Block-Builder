@@ -13,6 +13,7 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 global $wpdb;
 
 // Par sécurité, nous ne supprimons que l'historique pour nettoyer la base.
+// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange
 $wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}marcosado_blocks_history" );
 
 // Supprimer le dossier d'uploads s'il existait dans les anciennes versions

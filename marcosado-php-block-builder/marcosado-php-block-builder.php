@@ -24,6 +24,7 @@ define('MARCOSADO_VERSION', '1.0.0');
 // ─────────────────────────────────────────────────────────────────────────────
 // Chargement des classes
 // ─────────────────────────────────────────────────────────────────────────────
+require_once MARCOSADO_PLUGIN_DIR . 'includes/polyfill.php';
 require_once MARCOSADO_PLUGIN_DIR . 'includes/class-db.php';
 require_once MARCOSADO_PLUGIN_DIR . 'includes/class-admin.php';
 require_once MARCOSADO_PLUGIN_DIR . 'includes/class-parser.php';

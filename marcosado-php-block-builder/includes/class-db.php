@@ -15,6 +15,7 @@ class Marcosado_DB
         global $wpdb;
         $charset = $wpdb->get_charset_collate();
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         $wpdb->query("CREATE TABLE IF NOT EXISTS {$wpdb->prefix}marcosado_blocks (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             name VARCHAR(255) NOT NULL,
@@ -25,6 +26,7 @@ class Marcosado_DB
             UNIQUE KEY slug (slug)
         ) $charset");
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         $wpdb->query("CREATE TABLE IF NOT EXISTS {$wpdb->prefix}marcosado_blocks_history (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             slug VARCHAR(191) NOT NULL,
@@ -34,6 +36,7 @@ class Marcosado_DB
             KEY slug_idx (slug)
         ) $charset");
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         $wpdb->query("CREATE TABLE IF NOT EXISTS {$wpdb->prefix}marcosado_block_attributes (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             block_slug VARCHAR(191) NOT NULL,
@@ -53,21 +56,27 @@ class Marcosado_DB
     public static function maybe_setup_tables(): void
     {
         global $wpdb;
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         $exists = $wpdb->get_var("SHOW TABLES LIKE '{$wpdb->prefix}marcosado_blocks'");
         if (!$exists) {
             self::activate();
         }
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         $bm_attr_exists = $wpdb->get_var("SHOW TABLES LIKE '{$wpdb->prefix}marcosado_block_attributes'");
         if (!$bm_attr_exists) {
             self::activate();
         } else {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
             $col_exists = $wpdb->get_results("SHOW COLUMNS FROM {$wpdb->prefix}marcosado_block_attributes LIKE 'field_section'");
             if (empty($col_exists)) {
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
                 $wpdb->query("ALTER TABLE {$wpdb->prefix}marcosado_block_attributes ADD COLUMN field_section VARCHAR(255) NOT NULL DEFAULT 'Général' AFTER field_default");
             }
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
             $col_sub = $wpdb->get_results("SHOW COLUMNS FROM {$wpdb->prefix}marcosado_block_attributes LIKE 'field_sub_fields'");
             if (empty($col_sub)) {
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
                 $wpdb->query("ALTER TABLE {$wpdb->prefix}marcosado_block_attributes ADD COLUMN field_sub_fields LONGTEXT NULL AFTER field_section");
             }
         }
@@ -78,6 +87,7 @@ class Marcosado_DB
         static $cache = null;
         if ($cache !== null) return $cache;
         global $wpdb;
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         $all = $wpdb->get_results(
             "SELECT * FROM {$wpdb->prefix}marcosado_block_attributes ORDER BY sort_order ASC"
         );

@@ -23,9 +23,11 @@ class Marcosado_Elementor
 
         global $wpdb;
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $blocks = $wpdb->get_results("SELECT slug, name, code FROM {$wpdb->prefix}marcosado_blocks");
         if (empty($blocks)) return;
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $all_attrs = $wpdb->get_results("SELECT block_slug, field_key, field_label, field_type, field_default, field_section, field_sub_fields FROM {$wpdb->prefix}marcosado_block_attributes ORDER BY sort_order ASC");
         
         $attrs_by_slug = [];

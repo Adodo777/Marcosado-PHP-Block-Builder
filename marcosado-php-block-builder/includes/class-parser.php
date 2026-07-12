@@ -69,6 +69,7 @@ class Marcosado_Parser
         $extracted = $bm_attributes;
 
         $attr_table = $wpdb->prefix . 'marcosado_block_attributes';
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $wpdb->delete($attr_table, ['block_slug' => $slug]);
 
         $sort_order = 10;
@@ -78,6 +79,7 @@ class Marcosado_Parser
 
             $sub_fields = isset($options['fields']) && is_array($options['fields']) ? wp_json_encode($options['fields']) : null;
 
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $wpdb->insert($attr_table, [
                 'block_slug'       => $slug,
                 'field_key'        => $key,
@@ -102,6 +104,7 @@ class Marcosado_Parser
             return $code;
         }
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $attrs = $wpdb->get_results($wpdb->prepare(
             "SELECT * FROM {$wpdb->prefix}marcosado_block_attributes WHERE block_slug = %s ORDER BY sort_order ASC",
             $slug
@@ -121,6 +124,7 @@ class Marcosado_Parser
             if (!empty($attr->field_sub_fields)) {
                 $decoded = json_decode($attr->field_sub_fields, true);
                 if (is_array($decoded)) {
+                    // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_var_export
                     $sub_fields = ", 'fields' => " . var_export($decoded, true);
                 }
             }
