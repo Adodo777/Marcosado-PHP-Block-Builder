@@ -102,7 +102,8 @@ class Marcosado_Gutenberg
             'marcosado-block-builder-editor',
             $js_path,
             ['wp-blocks', 'wp-element', 'wp-editor', 'wp-components', 'wp-server-side-render'],
-            file_exists($js_file) ? filemtime($js_file) : '3.0'
+            file_exists($js_file) ? filemtime($js_file) : '3.0',
+            true
         );
 
         $bm_blocks_config = [];
